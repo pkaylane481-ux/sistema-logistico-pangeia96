@@ -48,11 +48,7 @@ const carregarDados = (sistema as any).carregarDados as
   | (() => Promise<void>)
   | undefined;
 
-console.log("Produtos carregados:", produtos);
-
-
-
-
+ 
 
 
   // ============================

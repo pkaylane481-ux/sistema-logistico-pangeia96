@@ -61,7 +61,6 @@ export async function buscarHistoricoDevolucaoLogistica(
   devolucao_id: string
 
 ) {
-console.log("Buscando histórico de:", devolucao_id);
 
   const { data, error } = await supabase
 
@@ -91,7 +90,6 @@ console.log("Buscando histórico de:", devolucao_id);
 
   }
 
-console.log("Histórico encontrado:", data);
   return data || [];
 
 }

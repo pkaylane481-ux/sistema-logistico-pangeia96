@@ -39,14 +39,11 @@ export default function DashboardHeader({
 
 }: Props) {
 
-
-  const agora = new Date();
-
+  const agora = useMemo(() => new Date(), []);
 
 
   const saudacao = useMemo(() => {
-
-    const hora = agora.getHours();
+    const hora = new Date().getHours();
 
     if (hora < 12)
       return "Bom dia";
