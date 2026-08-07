@@ -390,8 +390,27 @@ export default function DevolucaoLogistica() {
       const valorFrete = Number(editValorFrete.replace(",", ".")) || 0;
       const valorEstorno = Number(editValorEstorno.replace(",", ".")) || 0;
 
+      const statusFoiAlterado = statusAnterior !== editStatus;
+      let registroAtualizado: RegistroDevolucao = registroSelecionado;
+
+      // Salva o status isoladamente. Assim, um campo complementar recusado pelo
+      // banco não impede a movimentação principal do caso.
+      if (statusFoiAlterado) {
+        const atualizadoComNovoStatus = await atualizarDevolucao(
+          registroSelecionado.id,
+          { status: editStatus } as Partial<RegistroDevolucao>
+        );
+
+        if (!atualizadoComNovoStatus || String(atualizadoComNovoStatus.status ?? "") !== editStatus) {
+          throw new Error(
+            `O banco não confirmou a alteração de status de "${statusAnterior}" para "${editStatus}".`
+          );
+        }
+
+        registroAtualizado = atualizadoComNovoStatus as unknown as RegistroDevolucao;
+      }
+
       const camposAlterados: Record<string, unknown> = {};
-      if (statusAnterior !== editStatus) camposAlterados.status = editStatus;
       if (observacaoAnterior !== editObservacao) camposAlterados.observacao = editObservacao;
       if (Number(registroSelecionado.contatos ?? 0) !== editContatos) camposAlterados.contatos = editContatos;
       if (decisaoAnterior !== editDecisaoFinal) camposAlterados.decisao_final = editDecisaoFinal;
@@ -400,17 +419,21 @@ export default function DevolucaoLogistica() {
       if (freteAnterior !== valorFrete) camposAlterados.valor_frete = valorFrete;
       if (estornoAnterior !== valorEstorno) camposAlterados.valor_estorno = valorEstorno;
 
-      const registroAtualizado = await atualizarDevolucao(
-        registroSelecionado.id,
-        camposAlterados as Partial<RegistroDevolucao>
-      );
+      if (Object.keys(camposAlterados).length > 0) {
+        const atualizadoComComplementos = await atualizarDevolucao(
+          registroSelecionado.id,
+          camposAlterados as Partial<RegistroDevolucao>
+        );
 
-      if (!registroAtualizado) {
-        throw new Error("O Supabase não confirmou a atualização da devolução logística.");
+        if (!atualizadoComComplementos) {
+          throw new Error("O banco não confirmou a atualização dos demais dados da devolução logística.");
+        }
+
+        registroAtualizado = atualizadoComComplementos as unknown as RegistroDevolucao;
       }
 
       const historicos = [];
-      if (statusAnterior !== editStatus) {
+      if (statusFoiAlterado) {
         historicos.push({ acao: "Status", descricao: `${statusAnterior} → ${editStatus}` });
       }
       if (observacaoAnterior !== editObservacao) {
@@ -449,11 +472,11 @@ export default function DevolucaoLogistica() {
         processo: "Devolução Logística",
         pedido: String(registroSelecionado.pedido ?? ""),
         registroId: registroSelecionado.id,
-        observacao: statusAnterior !== editStatus ? `${statusAnterior} → ${editStatus}` : "Dados atualizados"
+        observacao: statusFoiAlterado ? `${statusAnterior} → ${editStatus}` : "Dados atualizados"
       });
 
       setRegistroSelecionado({
-        ...registroAtualizado,
+        ...(registroAtualizado as RegistroDevolucao),
         data_informada_entrega: registroAtualizado.data_informada_entrega ?? editDataInformadaEntrega
       });
       setSomenteLeitura(STATUS_FINALIZADOS.includes(editStatus));
@@ -466,7 +489,8 @@ export default function DevolucaoLogistica() {
       );
     } catch (error) {
       console.error("Erro ao salvar alterações:", error);
-      window.alert("Não foi possível salvar as alterações.");
+      const mensagem = error instanceof Error ? error.message : "Erro desconhecido.";
+      window.alert(`Não foi possível salvar as alterações.\n\n${mensagem}`);
     } finally {
       setSalvandoEdicao(false);
     }
