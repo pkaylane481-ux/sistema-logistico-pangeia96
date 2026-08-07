@@ -25,6 +25,7 @@ interface RegistroDevolucao {
   quantidade_contatos?: number;
   decisao_final?: string;
   codigo_rastreio?: string;
+  data_informada_entrega?: string;
   valor_frete?: number;
   valor_estorno?: number;
   created_at?: string;
@@ -76,7 +77,7 @@ const buttonStyle = {
 };
 
 const STATUS_FINALIZADOS = ["Enviado", "Cancelado", "Estoque"];
-const STATUS_PENDENTES = ["Recebido", "Em contato", "Reenviar", "Para estoque"];
+const STATUS_PENDENTES = ["Recebido", "Não entregue", "Em contato", "Reenviar", "Para estoque"];
 
 function obterDataHoje(): string {
   const hoje = new Date();
@@ -110,6 +111,7 @@ function formatarMoeda(valor: number): string {
 function decisaoPorStatus(status: string): string {
   const decisoes: Record<string, string> = {
     Recebido: "Em andamento",
+    "Não entregue": "Em andamento",
     "Em contato": "Aguardando retorno",
     Reenviar: "Reenvio aprovado",
     Enviado: "Reenviado",
@@ -149,6 +151,8 @@ export default function DevolucaoLogistica() {
   const [precisaReenvio, setPrecisaReenvio] = useState("Não");
   const [novoPedido, setNovoPedido] = useState("");
   const [dataReenvio, setDataReenvio] = useState("");
+  const [codigoRastreioCadastro, setCodigoRastreioCadastro] = useState("");
+  const [dataInformadaEntrega, setDataInformadaEntrega] = useState("");
   const [salvandoCadastro, setSalvandoCadastro] = useState(false);
 
   const [editando, setEditando] = useState(false);
@@ -159,6 +163,7 @@ export default function DevolucaoLogistica() {
   const [editContatos, setEditContatos] = useState(0);
   const [editDecisaoFinal, setEditDecisaoFinal] = useState("");
   const [editCodigoRastreio, setEditCodigoRastreio] = useState("");
+  const [editDataInformadaEntrega, setEditDataInformadaEntrega] = useState("");
   const [editValorFrete, setEditValorFrete] = useState("");
   const [editValorEstorno, setEditValorEstorno] = useState("");
   const [editOperadorEtapa, setEditOperadorEtapa] = useState("");
@@ -177,6 +182,9 @@ export default function DevolucaoLogistica() {
       STATUS_PENDENTES.includes(String(item.status ?? ""))
     ).length;
     const emContato = registrosExibidos.filter((item) => item.status === "Em contato").length;
+    const naoEntregues = registrosExibidos.filter(
+      (item) => item.status === "Não entregue" || Boolean(item.data_informada_entrega)
+    ).length;
     const reenvios = registrosExibidos.filter(
       (item) => item.destino === "Reenvio" || item.status === "Reenviar" || item.status === "Enviado"
     ).length;
@@ -187,7 +195,7 @@ export default function DevolucaoLogistica() {
       STATUS_FINALIZADOS.includes(String(item.status ?? ""))
     ).length;
 
-    return { total, pendentes, emContato, reenvios, estoque, finalizados };
+    return { total, pendentes, naoEntregues, emContato, reenvios, estoque, finalizados };
   }, [registrosExibidos]);
 
   const colunasExportacao = [
@@ -202,6 +210,7 @@ export default function DevolucaoLogistica() {
     { campo: "contatos", titulo: "Contatos" },
     { campo: "decisao_final", titulo: "Decisão final" },
     { campo: "codigo_rastreio", titulo: "Código de rastreio" },
+    { campo: "data_informada_entrega", titulo: "Data informada como entregue" },
     { campo: "valor_frete", titulo: "Valor do frete" },
     { campo: "valor_estorno", titulo: "Valor do estorno" },
     { campo: "observacao", titulo: "Observação" }
@@ -219,6 +228,8 @@ export default function DevolucaoLogistica() {
     setPrecisaReenvio("Não");
     setNovoPedido("");
     setDataReenvio("");
+    setCodigoRastreioCadastro("");
+    setDataInformadaEntrega("");
   }
 
   async function salvarDevolucao() {
@@ -228,6 +239,10 @@ export default function DevolucaoLogistica() {
     }
     if (!responsavel.trim()) {
       window.alert("Selecione quem está cadastrando o caso.");
+      return;
+    }
+    if (status === "Não entregue" && (!codigoRastreioCadastro.trim() || !dataInformadaEntrega)) {
+      window.alert("Informe o código de rastreio e a data informada como entregue.");
       return;
     }
 
@@ -242,7 +257,9 @@ export default function DevolucaoLogistica() {
         status,
         responsavel,
         observacao,
-        destino: precisaReenvio === "Sim" ? "Reenvio" : "Estoque"
+        destino: precisaReenvio === "Sim" ? "Reenvio" : "Estoque",
+        codigo_rastreio: status === "Não entregue" ? codigoRastreioCadastro.trim() : "",
+        data_informada_entrega: status === "Não entregue" ? dataInformadaEntrega : undefined
       });
       const produtividadeRegistrada = await registrarEtapaProdutividade({
         operador: responsavel,
@@ -274,6 +291,7 @@ export default function DevolucaoLogistica() {
     setEditContatos(obterContatos(item));
     setEditDecisaoFinal(String(item.decisao_final ?? decisaoPorStatus(statusAtual)));
     setEditCodigoRastreio(String(item.codigo_rastreio ?? ""));
+    setEditDataInformadaEntrega(String(item.data_informada_entrega ?? ""));
     setEditValorFrete(item.valor_frete == null ? "" : String(item.valor_frete));
     setEditValorEstorno(item.valor_estorno == null ? "" : String(item.valor_estorno));
     setEditOperadorEtapa("");
@@ -337,11 +355,17 @@ export default function DevolucaoLogistica() {
   async function salvarEdicao() {
     if (!registroSelecionado || somenteLeitura) return;
 
+    if (editStatus === "Não entregue" && (!editCodigoRastreio.trim() || !editDataInformadaEntrega)) {
+      window.alert("Informe o código de rastreio e a data informada como entregue.");
+      return;
+    }
+
     const houveAlteracao =
       String(registroSelecionado.status ?? "") !== editStatus ||
       String(registroSelecionado.observacao ?? "") !== editObservacao ||
       String(registroSelecionado.decisao_final ?? "") !== editDecisaoFinal ||
       String(registroSelecionado.codigo_rastreio ?? "") !== editCodigoRastreio.trim() ||
+      String(registroSelecionado.data_informada_entrega ?? "") !== editDataInformadaEntrega ||
       Number(registroSelecionado.valor_frete ?? 0) !== (Number(editValorFrete.replace(",", ".")) || 0) ||
       Number(registroSelecionado.valor_estorno ?? 0) !== (Number(editValorEstorno.replace(",", ".")) || 0);
 
@@ -360,20 +384,26 @@ export default function DevolucaoLogistica() {
       const observacaoAnterior = String(registroSelecionado.observacao ?? "");
       const decisaoAnterior = String(registroSelecionado.decisao_final ?? "");
       const rastreioAnterior = String(registroSelecionado.codigo_rastreio ?? "");
+      const dataInformadaAnterior = String(registroSelecionado.data_informada_entrega ?? "");
       const freteAnterior = Number(registroSelecionado.valor_frete ?? 0);
       const estornoAnterior = Number(registroSelecionado.valor_estorno ?? 0);
       const valorFrete = Number(editValorFrete.replace(",", ".")) || 0;
       const valorEstorno = Number(editValorEstorno.replace(",", ".")) || 0;
 
-      await atualizarDevolucao(registroSelecionado.id, {
+      const registroAtualizado = await atualizarDevolucao(registroSelecionado.id, {
         status: editStatus,
         observacao: editObservacao,
         contatos: editContatos,
         decisao_final: editDecisaoFinal,
         codigo_rastreio: editCodigoRastreio.trim(),
+        data_informada_entrega: editDataInformadaEntrega || null,
         valor_frete: valorFrete,
         valor_estorno: valorEstorno
       } as any);
+
+      if (!registroAtualizado) {
+        throw new Error("O Supabase não confirmou a atualização da devolução logística.");
+      }
 
       const historicos = [];
       if (statusAnterior !== editStatus) {
@@ -387,6 +417,9 @@ export default function DevolucaoLogistica() {
       }
       if (rastreioAnterior !== editCodigoRastreio.trim()) {
         historicos.push({ acao: "Rastreio", descricao: `Código alterado para ${editCodigoRastreio.trim() || "não informado"}.` });
+      }
+      if (dataInformadaAnterior !== editDataInformadaEntrega) {
+        historicos.push({ acao: "Data informada como entregue", descricao: `Alterada para ${editDataInformadaEntrega ? formatarData(editDataInformadaEntrega) : "não informada"}.` });
       }
       if (freteAnterior !== valorFrete) {
         historicos.push({ acao: "Valor do frete", descricao: `Alterado para ${formatarMoeda(valorFrete)}.` });
@@ -416,14 +449,8 @@ export default function DevolucaoLogistica() {
       });
 
       setRegistroSelecionado({
-        ...registroSelecionado,
-        status: editStatus,
-        observacao: editObservacao,
-        contatos: editContatos,
-        decisao_final: editDecisaoFinal,
-        codigo_rastreio: editCodigoRastreio.trim(),
-        valor_frete: valorFrete,
-        valor_estorno: valorEstorno
+        ...registroAtualizado,
+        data_informada_entrega: registroAtualizado.data_informada_entrega ?? editDataInformadaEntrega
       });
       setSomenteLeitura(STATUS_FINALIZADOS.includes(editStatus));
       await carregarDados();
@@ -499,6 +526,7 @@ export default function DevolucaoLogistica() {
       >
         <Indicador titulo="Total" valor={indicadores.total} icone="📦" cor="#2563eb" />
         <Indicador titulo="Pendentes" valor={indicadores.pendentes} icone="🟡" cor="#f59e0b" />
+        <Indicador titulo="Não entregues" valor={indicadores.naoEntregues} icone="🚫" cor="#dc2626" />
         <Indicador titulo="Em contato" valor={indicadores.emContato} icone="📞" cor="#8b5cf6" />
         <Indicador titulo="Reenvios" valor={indicadores.reenvios} icone="🚚" cor="#0ea5e9" />
         <Indicador titulo="Estoque" valor={indicadores.estoque} icone="🏬" cor="#10b981" />
@@ -539,6 +567,10 @@ export default function DevolucaoLogistica() {
             setNovoPedido={setNovoPedido}
             dataReenvio={dataReenvio}
             setDataReenvio={setDataReenvio}
+            codigoRastreio={codigoRastreioCadastro}
+            setCodigoRastreio={setCodigoRastreioCadastro}
+            dataInformadaEntrega={dataInformadaEntrega}
+            setDataInformadaEntrega={setDataInformadaEntrega}
             operadores={operadores ?? []}
             transportadoras={transportadoras ?? []}
             motivos={motivos ?? []}
@@ -566,6 +598,7 @@ export default function DevolucaoLogistica() {
           contatos={editContatos}
           decisaoFinal={editDecisaoFinal}
           codigoRastreio={editCodigoRastreio}
+          dataInformadaEntrega={editDataInformadaEntrega}
           valorFrete={editValorFrete}
           valorEstorno={editValorEstorno}
           operadorEtapa={editOperadorEtapa}
@@ -574,6 +607,7 @@ export default function DevolucaoLogistica() {
           onStatusChange={alterarStatus}
           onObservacaoChange={setEditObservacao}
           onCodigoRastreioChange={setEditCodigoRastreio}
+          onDataInformadaEntregaChange={setEditDataInformadaEntrega}
           onValorFreteChange={setEditValorFrete}
           onValorEstornoChange={setEditValorEstorno}
           onOperadorEtapaChange={setEditOperadorEtapa}
@@ -652,6 +686,10 @@ interface FormularioProps {
   setNovoPedido: (valor: string) => void;
   dataReenvio: string;
   setDataReenvio: (valor: string) => void;
+  codigoRastreio: string;
+  setCodigoRastreio: (valor: string) => void;
+  dataInformadaEntrega: string;
+  setDataInformadaEntrega: (valor: string) => void;
   operadores: Array<{ id?: string | number; nome?: string }>;
   transportadoras: Array<{ id?: string | number; nome?: string }>;
   motivos: Array<{ id?: string | number; nome?: string }>;
@@ -691,6 +729,7 @@ function FormularioDevolucao(props: FormularioProps) {
         <Campo label="Status">
           <select style={inputStyle} value={props.status} onChange={(e) => props.setStatus(e.target.value)}>
             <option>Recebido</option>
+            <option>Não entregue</option>
             <option>Em contato</option>
             <option>Reenviar</option>
             <option>Enviado</option>
@@ -712,6 +751,18 @@ function FormularioDevolucao(props: FormularioProps) {
           </select>
         </Campo>
       </div>
+
+      {props.status === "Não entregue" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "16px", marginTop: "16px", padding: "16px", borderRadius: "12px", background: "#fef2f2", border: "1px solid #fecaca" }}>
+          <div style={{ gridColumn: "1 / -1", color: "#991b1b", fontWeight: 800 }}>🚫 Dados do pacote informado como entregue</div>
+          <Campo label="Código de rastreio" obrigatorio>
+            <input style={inputStyle} value={props.codigoRastreio} onChange={(e) => props.setCodigoRastreio(e.target.value.toUpperCase())} placeholder="Código de rastreio do pacote" />
+          </Campo>
+          <Campo label="Data informada como entregue" obrigatorio>
+            <input type="date" style={inputStyle} value={props.dataInformadaEntrega} onChange={(e) => props.setDataInformadaEntrega(e.target.value)} />
+          </Campo>
+        </div>
+      )}
 
       {props.precisaReenvio === "Sim" && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: "16px", marginTop: "16px", padding: "16px", borderRadius: "12px", background: "#f5f3ff" }}>
@@ -760,10 +811,10 @@ function ListagemDevolucoes({ registros, onAbrir, onExcluir }: { registros: Regi
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1050px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1260px" }}>
             <thead>
               <tr style={{ background: "#f5f3ff", color: "#4c1d95", textAlign: "left" }}>
-                {["Data", "Pedido", "Cliente", "Transportadora", "Motivo", "Status", "Responsável", "Contatos", "Ações"].map((titulo) => (
+                {["Data", "Pedido", "Cliente", "Transportadora", "Motivo", "Status", "Rastreio", "Data entregue", "Responsável", "Contatos", "Ações"].map((titulo) => (
                   <th key={titulo} style={{ padding: "13px", fontSize: "13px" }}>{titulo}</th>
                 ))}
               </tr>
@@ -777,6 +828,8 @@ function ListagemDevolucoes({ registros, onAbrir, onExcluir }: { registros: Regi
                   <td style={{ padding: "13px" }}>{String(item.transportadora ?? "-")}</td>
                   <td style={{ padding: "13px" }}>{String(item.motivo ?? "-")}</td>
                   <td style={{ padding: "13px" }}><StatusBadge status={String(item.status ?? "-")} /></td>
+                  <td style={{ padding: "13px" }}>{String(item.codigo_rastreio ?? "-")}</td>
+                  <td style={{ padding: "13px" }}>{item.data_informada_entrega ? formatarData(item.data_informada_entrega) : "-"}</td>
                   <td style={{ padding: "13px" }}>{String(item.responsavel ?? "-")}</td>
                   <td style={{ padding: "13px", textAlign: "center" }}>{obterContatos(item)}</td>
                   <td style={{ padding: "13px" }}>
@@ -1341,6 +1394,7 @@ interface PainelProps {
   contatos: number;
   decisaoFinal: string;
   codigoRastreio: string;
+  dataInformadaEntrega: string;
   valorFrete: string;
   valorEstorno: string;
   operadorEtapa: string;
@@ -1349,6 +1403,7 @@ interface PainelProps {
   onStatusChange: (valor: string) => void;
   onObservacaoChange: (valor: string) => void;
   onCodigoRastreioChange: (valor: string) => void;
+  onDataInformadaEntregaChange: (valor: string) => void;
   onValorFreteChange: (valor: string) => void;
   onValorEstornoChange: (valor: string) => void;
   onOperadorEtapaChange: (valor: string) => void;
@@ -1361,6 +1416,7 @@ function PainelEdicao(props: PainelProps) {
   const corContato = props.contatos >= 3 ? "#dc2626" : props.contatos === 2 ? "#eab308" : props.contatos === 1 ? "#22c55e" : "#64748b";
   const casoReenvio = ["Reenviar", "Enviado"].includes(props.status) || props.decisaoFinal === "Reenviado";
   const casoEstorno = ["Para estoque", "Estoque"].includes(props.status) || props.decisaoFinal === "Estornado";
+  const casoNaoEntregue = props.status === "Não entregue" || Boolean(props.dataInformadaEntrega);
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(15, 23, 42, 0.45)" }} onClick={props.onFechar}>
       <aside onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 0, right: 0, width: "min(520px, 100vw)", height: "100vh", background: "#fff", boxShadow: "-8px 0 24px rgba(0,0,0,.2)", padding: "24px", overflowY: "auto" }}>
@@ -1381,20 +1437,32 @@ function PainelEdicao(props: PainelProps) {
           <Campo label="Cliente"><input style={{ ...inputStyle, background: "#f8fafc" }} value={String(props.registro.cliente ?? "")} readOnly /></Campo>
           <Campo label="Transportadora"><input style={{ ...inputStyle, background: "#f8fafc" }} value={String(props.registro.transportadora ?? "")} readOnly /></Campo>
           <Campo label="Motivo"><input style={{ ...inputStyle, background: "#f8fafc" }} value={String(props.registro.motivo ?? "")} readOnly /></Campo>
-          <Campo label="Status"><select style={inputStyle} value={props.status} disabled={props.somenteLeitura} onChange={(e) => props.onStatusChange(e.target.value)}><option>Recebido</option><option>Em contato</option><option>Reenviar</option><option>Enviado</option><option>Cancelado</option><option>Para estoque</option><option>Estoque</option></select></Campo>
+          <Campo label="Status"><select style={inputStyle} value={props.status} disabled={props.somenteLeitura} onChange={(e) => props.onStatusChange(e.target.value)}><option>Recebido</option><option>Não entregue</option><option>Em contato</option><option>Reenviar</option><option>Enviado</option><option>Cancelado</option><option>Para estoque</option><option>Estoque</option></select></Campo>
           <Campo label="Decisão final"><input style={{ ...inputStyle, background: "#f8fafc" }} value={props.decisaoFinal} readOnly /></Campo>
+
+          {casoNaoEntregue && (
+            <div style={{ display: "grid", gap: "14px", padding: "16px", borderRadius: "12px", background: "#fef2f2", border: "1px solid #fecaca" }}>
+              <div style={{ color: "#991b1b", fontSize: "14px", fontWeight: 800 }}>🚫 Dados do não entregue</div>
+              <Campo label="Código de rastreio">
+                <input style={inputStyle} value={props.codigoRastreio} onChange={(e) => props.onCodigoRastreioChange(e.target.value.toUpperCase())} />
+              </Campo>
+              <Campo label="Data informada como entregue">
+                <input type="date" style={inputStyle} value={props.dataInformadaEntrega} onChange={(e) => props.onDataInformadaEntregaChange(e.target.value)} />
+              </Campo>
+            </div>
+          )}
 
           {casoReenvio && (
             <div style={{ display: "grid", gap: "14px", padding: "16px", borderRadius: "12px", background: "#eff6ff", border: "1px solid #bfdbfe" }}>
               <div style={{ color: "#1e40af", fontSize: "14px", fontWeight: 800 }}>🚚 Dados do reenvio</div>
-              <Campo label="Código de rastreio">
+              {!casoNaoEntregue && <Campo label="Código de rastreio">
                 <input
                   style={inputStyle}
                   value={props.codigoRastreio}
                   onChange={(e) => props.onCodigoRastreioChange(e.target.value)}
                   placeholder="Informe o código de rastreio"
                 />
-              </Campo>
+              </Campo>}
               <Campo label="Valor do frete">
                 <input
                   type="number"

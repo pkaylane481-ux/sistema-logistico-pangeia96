@@ -207,6 +207,8 @@ export interface DevolucaoLogistica {
 
   codigo_rastreio?: string;
 
+  data_informada_entrega?: string;
+
   valor_frete?: number;
 
   valor_estorno?: number;

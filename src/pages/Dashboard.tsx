@@ -18,6 +18,7 @@ type Evento = {
   marketplace: string;
   transportadora: string;
   motivo: string;
+  naoEntregue: boolean;
   valorFrete: number;
   valorEstorno: number;
 };
@@ -69,6 +70,7 @@ function criarEvento(item: any, area: string, processo?: string): Evento | null 
     marketplace: texto(item.marketplace),
     transportadora: texto(item.transportadora),
     motivo: texto(item.motivo ?? item.descricao ?? item.divergencia),
+    naoEntregue: normalizar(status) === "nao entregue" || Boolean(item.data_informada_entrega),
     valorFrete: numero(item.valor_frete ?? item.valorFrete),
     valorEstorno: numero(item.valor_estorno ?? item.valorEstorno)
   };
@@ -302,7 +304,8 @@ function VisaoQualidade({ falhas, tipos, motivos, transportadoras, totalProduzid
 function VisaoResultados({ devolucoes, resultados, totalFrete, totalEstorno }: any) {
   const reenviados = resultados.find((item: any) => item.nome === "Reenviado")?.valor ?? 0;
   const estornados = resultados.find((item: any) => item.nome === "Estornado")?.valor ?? 0;
-  return <div style={{ display: "grid", gap: 18 }}><section style={miniKpiGridStyle}><MiniKpi titulo="Total de devoluções" valor={devolucoes.length} /><MiniKpi titulo="Reenviados" valor={reenviados} /><MiniKpi titulo="Estornados" valor={estornados} /><MiniKpi titulo="Custo médio do reenvio" valor={moeda(reenviados ? totalFrete / reenviados : 0)} /></section><section className="dash-duplo" style={duploStyle}><Painel titulo="Resultado final" subtitulo="Reenviado, estornado e cancelado"><CardsResultado dados={resultados} total={devolucoes.length} /></Painel><Painel titulo="Comparação financeira" subtitulo="Fretes de reenvio e valores estornados"><Financeiro frete={totalFrete} estorno={totalEstorno} /></Painel></section></div>;
+  const naoEntregues = devolucoes.filter((item: Evento) => item.naoEntregue).length;
+  return <div style={{ display: "grid", gap: 18 }}><section style={miniKpiGridStyle}><MiniKpi titulo="Total de devoluções" valor={devolucoes.length} /><MiniKpi titulo="Não entregues" valor={naoEntregues} /><MiniKpi titulo="Reenviados" valor={reenviados} /><MiniKpi titulo="Estornados" valor={estornados} /><MiniKpi titulo="Custo médio do reenvio" valor={moeda(reenviados ? totalFrete / reenviados : 0)} /></section><section className="dash-duplo" style={duploStyle}><Painel titulo="Resultado final" subtitulo="Reenviado, estornado e cancelado"><CardsResultado dados={resultados} total={devolucoes.length} /></Painel><Painel titulo="Comparação financeira" subtitulo="Fretes de reenvio e valores estornados"><Financeiro frete={totalFrete} estorno={totalEstorno} /></Painel></section></div>;
 }
 
 function Campo({ titulo, children }: { titulo: string; children: ReactNode }) { return <label style={campoStyle}><span style={labelStyle}>{titulo}</span>{children}</label>; }
