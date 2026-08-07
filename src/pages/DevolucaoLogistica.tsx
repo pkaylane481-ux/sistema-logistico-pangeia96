@@ -390,16 +390,20 @@ export default function DevolucaoLogistica() {
       const valorFrete = Number(editValorFrete.replace(",", ".")) || 0;
       const valorEstorno = Number(editValorEstorno.replace(",", ".")) || 0;
 
-      const registroAtualizado = await atualizarDevolucao(registroSelecionado.id, {
-        status: editStatus,
-        observacao: editObservacao,
-        contatos: editContatos,
-        decisao_final: editDecisaoFinal,
-        codigo_rastreio: editCodigoRastreio.trim(),
-        data_informada_entrega: editDataInformadaEntrega || null,
-        valor_frete: valorFrete,
-        valor_estorno: valorEstorno
-      } as any);
+      const camposAlterados: Record<string, unknown> = {};
+      if (statusAnterior !== editStatus) camposAlterados.status = editStatus;
+      if (observacaoAnterior !== editObservacao) camposAlterados.observacao = editObservacao;
+      if (Number(registroSelecionado.contatos ?? 0) !== editContatos) camposAlterados.contatos = editContatos;
+      if (decisaoAnterior !== editDecisaoFinal) camposAlterados.decisao_final = editDecisaoFinal;
+      if (rastreioAnterior !== editCodigoRastreio.trim()) camposAlterados.codigo_rastreio = editCodigoRastreio.trim();
+      if (dataInformadaAnterior !== editDataInformadaEntrega) camposAlterados.data_informada_entrega = editDataInformadaEntrega || null;
+      if (freteAnterior !== valorFrete) camposAlterados.valor_frete = valorFrete;
+      if (estornoAnterior !== valorEstorno) camposAlterados.valor_estorno = valorEstorno;
+
+      const registroAtualizado = await atualizarDevolucao(
+        registroSelecionado.id,
+        camposAlterados as Partial<RegistroDevolucao>
+      );
 
       if (!registroAtualizado) {
         throw new Error("O Supabase não confirmou a atualização da devolução logística.");
