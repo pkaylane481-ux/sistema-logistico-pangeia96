@@ -21,3 +21,4 @@ export * from "./falhas";
 export * from "./produtos";
 export * from "./historicoDevolucao";
 export * from "./historicoDevolucoesLogistica";
+export * from "./etapasProdutividade";

@@ -8,6 +8,7 @@ import Transportadoras from "../components/configuracoes/Transportadoras";
 import Motivos from "../components/configuracoes/Motivos";
 import Marketplaces from "../components/configuracoes/Marketplaces";
 import SLA from "../components/configuracoes/SLA";
+import Produtos from "../components/configuracoes/Produtos";
 
 type AbaConfiguracao =
   | "usuarios"
@@ -16,6 +17,7 @@ type AbaConfiguracao =
   | "transportadoras"
   | "motivos"
   | "marketplaces"
+  | "produtos"
   | "sla";
 
 type ItemMenu = {
@@ -63,6 +65,12 @@ const MENU: ItemMenu[] = [
     icone: "🏪"
   },
   {
+    id: "produtos",
+    nome: "Produtos",
+    descricao: "Catálogo para autopreenchimento de falhas",
+    icone: "👕"
+  },
+  {
     id: "sla",
     nome: "Regras de SLA",
     descricao: "Prazos definidos por processo",
@@ -79,6 +87,7 @@ export default function Configuracoes() {
     transportadoras = [],
     motivos = [],
     marketplaces = [],
+    produtos = [],
     slas = []
   } = sistema;
 
@@ -90,12 +99,12 @@ export default function Configuracoes() {
       operadores: operadores.length,
       atividades: atividades.length,
       cadastrosOperacionais:
-        transportadoras.length + motivos.length + marketplaces.length,
+        transportadoras.length + motivos.length + marketplaces.length + produtos.length,
       slasAtivos: slas.filter(
         (item: any) => String(item.status ?? "Ativo").trim().toLowerCase() !== "inativo"
       ).length
     }),
-    [usuarios, operadores, atividades, transportadoras, motivos, marketplaces, slas]
+    [usuarios, operadores, atividades, transportadoras, motivos, marketplaces, produtos, slas]
   );
 
   const itemAtivo = MENU.find((item) => item.id === abaSelecionada) ?? MENU[1];
@@ -114,6 +123,8 @@ export default function Configuracoes() {
         return <Motivos />;
       case "marketplaces":
         return <Marketplaces />;
+      case "produtos":
+        return <Produtos />;
       case "sla":
         return <SLA />;
       default:

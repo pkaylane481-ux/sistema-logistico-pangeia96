@@ -6,6 +6,7 @@ import FiltroRegistros from "../components/FiltroRegistros";
 
 import ExportarExcel from "../components/ExportarExcel";
 import { supabase } from "../services/supabase";
+import { registrarEtapaProdutividade } from "../services";
 
 type AbaTrocas = "Troquecommerce" | "Marketplace" | "Falhas";
 
@@ -68,6 +69,7 @@ const carregarDados = (sistema as any).carregarDados as
 
 
   const [listaFiltrada, setListaFiltrada] = useState<any[] | null>(null);
+  const [operadorAcaoStatus, setOperadorAcaoStatus] = useState("");
 
 
 
@@ -130,6 +132,7 @@ const carregarDados = (sistema as any).carregarDados as
   );
 
   const [statusFalha, setStatusFalha] = useState("Registrado");
+  const [fpResponsavel, setFpResponsavel] = useState("");
 
 
   const [fpProduto, setFpProduto] = useState("");
@@ -274,6 +277,15 @@ const [fpTamanho, setFpTamanho] = useState("");
     });
 
 
+    const produtividadeRegistrada = await registrarEtapaProdutividade({
+      operador,
+      atividade,
+      processo: "Troquecommerce",
+      quantidade: quantidade || 1,
+      data
+    });
+    if (carregarDados) await carregarDados();
+
     setData("");
 
     setQuantidade(0);
@@ -283,6 +295,10 @@ const [fpTamanho, setFpTamanho] = useState("");
     setAtividade("");
 
     setStatusTroquecommerce("Registrado");
+
+    if (!produtividadeRegistrada) {
+      window.alert("Registro salvo, mas não foi possível contabilizar a produtividade.");
+    }
 
   }
 
@@ -335,6 +351,15 @@ const [fpTamanho, setFpTamanho] = useState("");
       });
 
 
+    const produtividadeRegistrada = await registrarEtapaProdutividade({
+      operador: mpOperador,
+      atividade: "Registro de devolução Marketplace",
+      processo: "Marketplace",
+      pedido: mpPedido,
+      data: mpData
+    });
+    if (carregarDados) await carregarDados();
+
     setMpPedido("");
 
     setMpCliente("");
@@ -348,7 +373,11 @@ const [fpTamanho, setFpTamanho] = useState("");
       setMpData(obterDataHoje());
       setTeveErro("Não");
       setStatusMarketplace("Registrado");
-      window.alert("Registro de Marketplace salvo com sucesso.");
+      window.alert(
+        produtividadeRegistrada
+          ? "Registro de Marketplace salvo e produtividade contabilizada."
+          : "Registro salvo, mas não foi possível contabilizar a produtividade."
+      );
     } catch (error) {
       console.error("Erro ao registrar Marketplace:", error);
       window.alert("Não foi possível registrar o Marketplace.");
@@ -365,6 +394,11 @@ const [fpTamanho, setFpTamanho] = useState("");
 
     if (tipoFalha === "Falha de Peça") {
 
+      if (!fpSku.trim() || !fpPedido.trim() || !fpResponsavel) {
+        window.alert("Informe SKU, pedido e operador responsável.");
+        return;
+      }
+
 
       await adicionarTroca({
 
@@ -374,7 +408,7 @@ const [fpTamanho, setFpTamanho] = useState("");
 
         quantidade: 0,
 
-        operador: "",
+        operador: fpResponsavel,
 
         atividade: "",
 
@@ -394,7 +428,7 @@ tamanho: fpTamanho,
 
         motivo: fpMotivo,
 
-        responsavel: "",
+        responsavel: fpResponsavel,
 
         status: statusFalha,
 
@@ -404,9 +438,23 @@ tamanho: fpTamanho,
 
 
 
+      const produtividadeRegistrada = await registrarEtapaProdutividade({
+        operador: fpResponsavel,
+        atividade: "Registro de falha de peça",
+        processo: "Falhas",
+        pedido: fpPedido,
+        data: fpData,
+        observacao: `SKU: ${fpSku}`
+      });
+      if (carregarDados) await carregarDados();
+
       setFpProduto("");
 
       setFpSku("");
+
+      setFpCor("");
+
+      setFpTamanho("");
 
       setFpMotivo("");
 
@@ -416,11 +464,22 @@ tamanho: fpTamanho,
 
       setStatusFalha("Registrado");
 
+      setFpResponsavel("");
+
+      if (!produtividadeRegistrada) {
+        window.alert("Falha salva, mas não foi possível contabilizar a produtividade.");
+      }
+
 
 
     } else {
 
 
+
+      if (!fePedido.trim() || !feResponsabilidade) {
+        window.alert("Informe o pedido e o operador responsável.");
+        return;
+      }
 
       await adicionarTroca({
 
@@ -457,6 +516,15 @@ tamanho: fpTamanho,
 
       setFeTransportadora("");
 
+      const produtividadeRegistradaEntrega = await registrarEtapaProdutividade({
+        operador: feResponsabilidade,
+        atividade: "Registro de falha de entrega",
+        processo: "Falhas",
+        pedido: fePedido,
+        data: feRegistro
+      });
+      if (carregarDados) await carregarDados();
+
       setFeRastreio("");
 
       setFeResponsabilidade("");
@@ -471,12 +539,21 @@ tamanho: fpTamanho,
 
       setStatusFalha("Registrado");
 
+      if (!produtividadeRegistradaEntrega) {
+        window.alert("Falha salva, mas não foi possível contabilizar a produtividade.");
+      }
+
     }
 
 
   }
 
   async function alterarStatusRegistro(item: any, novoStatus: string) {
+    if (!operadorAcaoStatus) {
+      window.alert("Selecione o operador responsável pela alteração de status.");
+      return;
+    }
+
     try {
       if (atualizarTroca) {
         await atualizarTroca(item.id, { status: novoStatus });
@@ -491,6 +568,22 @@ tamanho: fpTamanho,
 
       if (carregarDados) {
         await carregarDados();
+      }
+
+      const produtividadeRegistrada = await registrarEtapaProdutividade({
+        operador: operadorAcaoStatus,
+        atividade: novoStatus === "Finalizado"
+          ? `Conclusão - ${item.tipo || aba}`
+          : `Atualização de status - ${item.tipo || aba}`,
+        processo: item.tipo || aba,
+        pedido: item.pedido || undefined,
+        registroId: String(item.id),
+        observacao: `${item.status || "Sem status"} → ${novoStatus}`
+      });
+      if (carregarDados) await carregarDados();
+
+      if (!produtividadeRegistrada) {
+        window.alert("Status alterado, mas não foi possível contabilizar a produtividade.");
       }
     } catch (error) {
       console.error("Erro ao alterar status:", error);
@@ -1452,8 +1545,39 @@ value={item.nome}
                   <div>
 
 
-                    <input
-/>
+  <input
+  style={inputStyle}
+  list="catalogo-produtos-sku"
+  placeholder="Digite ou selecione o SKU"
+  value={fpSku}
+  onChange={(e) => {
+    const skuDigitado = e.target.value.trim().toUpperCase();
+    setFpSku(skuDigitado);
+
+    const encontrado = produtos.find(
+      item => item.sku?.trim().toUpperCase() === skuDigitado
+    );
+
+    if (encontrado) {
+      setFpProduto(encontrado.produto ?? "");
+      setFpCor(encontrado.cor ?? "");
+      setFpTamanho(encontrado.tamanho ?? "");
+    } else {
+      setFpProduto("");
+      setFpCor("");
+      setFpTamanho("");
+    }
+  }}
+  />
+
+  <datalist id="catalogo-produtos-sku">
+    {(produtos || []).map((item) => (
+      <option key={item.id} value={item.sku}>
+        {item.produto} — {item.cor} — {item.tamanho}
+      </option>
+    ))}
+  </datalist>
+
 <input
   style={inputStyle}
   value={fpProduto}
@@ -1476,30 +1600,6 @@ value={item.nome}
 
 
 
-/>
-  <input
-  style={inputStyle}
-  placeholder="SKU"
-  value={fpSku}
-  onChange={(e) => {
-  const skuDigitado = e.target.value.trim().toUpperCase();
-
-  setFpSku(skuDigitado);
-
-  const encontrado = produtos.find(
-    item => item.sku?.trim().toUpperCase() === skuDigitado
-  );
-
-  if (encontrado) {
-    setFpProduto(encontrado.produto);
-    setFpCor(encontrado.cor);
-    setFpTamanho(encontrado.tamanho);
-  } else {
-    setFpProduto("");
-    setFpCor("");
-    setFpTamanho("");
-  }
-}}
 />
 
 <select
@@ -1555,6 +1655,13 @@ value={item.nome}
                       }
 
                     />
+
+                    <select style={inputStyle} value={fpResponsavel} onChange={(e) => setFpResponsavel(e.target.value)}>
+                      <option value="">Operador que registrou a falha</option>
+                      {(operadores || []).map((item) => (
+                        <option key={item.id} value={item.nome}>{item.nome}</option>
+                      ))}
+                    </select>
 
 
 
@@ -1838,6 +1945,16 @@ value={item.nome}
 
       >
 
+
+        <div style={{ ...cardStyle, marginBottom: "16px", borderLeft: "5px solid #7c3aed" }}>
+          <label style={{ fontWeight: 800, color: "#4c1d95" }}>Operador responsável pela próxima alteração de status</label>
+          <select style={inputStyle} value={operadorAcaoStatus} onChange={(e) => setOperadorAcaoStatus(e.target.value)}>
+            <option value="">Selecione antes de alterar um status</option>
+            {(operadores || []).map((item) => (
+              <option key={item.id} value={item.nome}>{item.nome}</option>
+            ))}
+          </select>
+        </div>
 
         <h2
 

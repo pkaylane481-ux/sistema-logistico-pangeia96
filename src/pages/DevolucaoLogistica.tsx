@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import FiltroRegistros from "../components/FiltroRegistros";
 import ExportarExcel from "../components/ExportarExcel";
 import { useSistema } from "../context/SistemaContext";
+import { registrarEtapaProdutividade } from "../services";
 
 type AbaAtiva = "formulario" | "dashboard";
 
@@ -160,6 +161,7 @@ export default function DevolucaoLogistica() {
   const [editCodigoRastreio, setEditCodigoRastreio] = useState("");
   const [editValorFrete, setEditValorFrete] = useState("");
   const [editValorEstorno, setEditValorEstorno] = useState("");
+  const [editOperadorEtapa, setEditOperadorEtapa] = useState("");
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
   const registros = useMemo(
@@ -224,6 +226,10 @@ export default function DevolucaoLogistica() {
       window.alert("Informe pedido e cliente.");
       return;
     }
+    if (!responsavel.trim()) {
+      window.alert("Selecione quem está cadastrando o caso.");
+      return;
+    }
 
     setSalvandoCadastro(true);
     try {
@@ -238,9 +244,20 @@ export default function DevolucaoLogistica() {
         observacao,
         destino: precisaReenvio === "Sim" ? "Reenvio" : "Estoque"
       });
+      const produtividadeRegistrada = await registrarEtapaProdutividade({
+        operador: responsavel,
+        atividade: "Cadastro de devolução logística",
+        processo: "Devolução Logística",
+        pedido: pedido.trim(),
+        data: data || obterDataHoje()
+      });
       await carregarDados();
       limparFormulario();
-      window.alert("Devolução registrada com sucesso.");
+      window.alert(
+        produtividadeRegistrada
+          ? "Devolução registrada e produtividade contabilizada."
+          : "Devolução registrada, mas não foi possível contabilizar a produtividade."
+      );
     } catch (error) {
       console.error("Erro ao registrar devolução:", error);
       window.alert("Não foi possível registrar a devolução.");
@@ -259,6 +276,7 @@ export default function DevolucaoLogistica() {
     setEditCodigoRastreio(String(item.codigo_rastreio ?? ""));
     setEditValorFrete(item.valor_frete == null ? "" : String(item.valor_frete));
     setEditValorEstorno(item.valor_estorno == null ? "" : String(item.valor_estorno));
+    setEditOperadorEtapa("");
     setSomenteLeitura(STATUS_FINALIZADOS.includes(statusAtual));
     setEditando(true);
 
@@ -281,6 +299,10 @@ export default function DevolucaoLogistica() {
 
   async function registrarContato() {
     if (!registroSelecionado) return;
+    if (!editOperadorEtapa.trim()) {
+      window.alert("Selecione quem realizou o contato.");
+      return;
+    }
 
     const novoTotal = editContatos + 1;
     try {
@@ -289,12 +311,23 @@ export default function DevolucaoLogistica() {
         devolucao_id: registroSelecionado.id,
         acao: "Contato realizado",
         descricao: `${novoTotal}ª tentativa de contato registrada.`,
-        usuario: "Sistema"
+        usuario: editOperadorEtapa
+      });
+      const produtividadeRegistrada = await registrarEtapaProdutividade({
+        operador: editOperadorEtapa,
+        atividade: "Contato com cliente",
+        processo: "Devolução Logística",
+        pedido: String(registroSelecionado.pedido ?? ""),
+        registroId: registroSelecionado.id,
+        observacao: `${novoTotal}ª tentativa de contato`
       });
       setEditContatos(novoTotal);
       setRegistroSelecionado({ ...registroSelecionado, contatos: novoTotal });
       await carregarHistoricoDevolucao(registroSelecionado.id);
       await carregarDados();
+      if (!produtividadeRegistrada) {
+        window.alert("Contato registrado, mas não foi possível contabilizar a produtividade.");
+      }
     } catch (error) {
       console.error("Erro ao registrar contato:", error);
       window.alert("Não foi possível registrar o contato.");
@@ -303,6 +336,23 @@ export default function DevolucaoLogistica() {
 
   async function salvarEdicao() {
     if (!registroSelecionado || somenteLeitura) return;
+
+    const houveAlteracao =
+      String(registroSelecionado.status ?? "") !== editStatus ||
+      String(registroSelecionado.observacao ?? "") !== editObservacao ||
+      String(registroSelecionado.decisao_final ?? "") !== editDecisaoFinal ||
+      String(registroSelecionado.codigo_rastreio ?? "") !== editCodigoRastreio.trim() ||
+      Number(registroSelecionado.valor_frete ?? 0) !== (Number(editValorFrete.replace(",", ".")) || 0) ||
+      Number(registroSelecionado.valor_estorno ?? 0) !== (Number(editValorEstorno.replace(",", ".")) || 0);
+
+    if (houveAlteracao && !editOperadorEtapa.trim()) {
+      window.alert("Selecione quem realizou esta etapa.");
+      return;
+    }
+    if (!houveAlteracao) {
+      window.alert("Nenhuma alteração foi realizada.");
+      return;
+    }
 
     setSalvandoEdicao(true);
     try {
@@ -349,9 +399,21 @@ export default function DevolucaoLogistica() {
         await registrarHistoricoDevolucao({
           devolucao_id: registroSelecionado.id,
           ...historico,
-          usuario: "Sistema"
+          usuario: editOperadorEtapa
         });
       }
+
+      const atividadeProdutividade = STATUS_FINALIZADOS.includes(editStatus)
+        ? "Conclusão de devolução logística"
+        : "Atualização de devolução logística";
+      const produtividadeRegistrada = await registrarEtapaProdutividade({
+        operador: editOperadorEtapa,
+        atividade: atividadeProdutividade,
+        processo: "Devolução Logística",
+        pedido: String(registroSelecionado.pedido ?? ""),
+        registroId: registroSelecionado.id,
+        observacao: statusAnterior !== editStatus ? `${statusAnterior} → ${editStatus}` : "Dados atualizados"
+      });
 
       setRegistroSelecionado({
         ...registroSelecionado,
@@ -366,7 +428,11 @@ export default function DevolucaoLogistica() {
       setSomenteLeitura(STATUS_FINALIZADOS.includes(editStatus));
       await carregarDados();
       await carregarHistoricoDevolucao(registroSelecionado.id);
-      window.alert("Alterações salvas com sucesso.");
+      window.alert(
+        produtividadeRegistrada
+          ? "Alterações salvas e produtividade contabilizada."
+          : "Alterações salvas, mas não foi possível contabilizar a produtividade."
+      );
     } catch (error) {
       console.error("Erro ao salvar alterações:", error);
       window.alert("Não foi possível salvar as alterações.");
@@ -502,12 +568,15 @@ export default function DevolucaoLogistica() {
           codigoRastreio={editCodigoRastreio}
           valorFrete={editValorFrete}
           valorEstorno={editValorEstorno}
+          operadorEtapa={editOperadorEtapa}
+          operadores={operadores ?? []}
           salvando={salvandoEdicao}
           onStatusChange={alterarStatus}
           onObservacaoChange={setEditObservacao}
           onCodigoRastreioChange={setEditCodigoRastreio}
           onValorFreteChange={setEditValorFrete}
           onValorEstornoChange={setEditValorEstorno}
+          onOperadorEtapaChange={setEditOperadorEtapa}
           onRegistrarContato={registrarContato}
           onSalvar={salvarEdicao}
           onFechar={fecharPainel}
@@ -1274,12 +1343,15 @@ interface PainelProps {
   codigoRastreio: string;
   valorFrete: string;
   valorEstorno: string;
+  operadorEtapa: string;
+  operadores: Array<{ id: string; nome: string }>;
   salvando: boolean;
   onStatusChange: (valor: string) => void;
   onObservacaoChange: (valor: string) => void;
   onCodigoRastreioChange: (valor: string) => void;
   onValorFreteChange: (valor: string) => void;
   onValorEstornoChange: (valor: string) => void;
+  onOperadorEtapaChange: (valor: string) => void;
   onRegistrarContato: () => void;
   onSalvar: () => void;
   onFechar: () => void;
@@ -1300,6 +1372,12 @@ function PainelEdicao(props: PainelProps) {
         {props.somenteLeitura && <div style={{ padding: "12px", borderRadius: "9px", background: "#fef3c7", color: "#92400e", marginBottom: "16px", fontSize: "13px", fontWeight: 700 }}>Caso finalizado. Status e tratativa estão bloqueados, mas os dados financeiros e de rastreio ainda podem ser atualizados.</div>}
 
         <div style={{ display: "grid", gap: "14px" }}>
+          <Campo label="Operador responsável por esta etapa">
+            <select style={inputStyle} value={props.operadorEtapa} onChange={(e) => props.onOperadorEtapaChange(e.target.value)}>
+              <option value="">Selecione o operador</option>
+              {props.operadores.map((item) => <option key={item.id} value={item.nome}>{item.nome}</option>)}
+            </select>
+          </Campo>
           <Campo label="Cliente"><input style={{ ...inputStyle, background: "#f8fafc" }} value={String(props.registro.cliente ?? "")} readOnly /></Campo>
           <Campo label="Transportadora"><input style={{ ...inputStyle, background: "#f8fafc" }} value={String(props.registro.transportadora ?? "")} readOnly /></Campo>
           <Campo label="Motivo"><input style={{ ...inputStyle, background: "#f8fafc" }} value={String(props.registro.motivo ?? "")} readOnly /></Campo>
