@@ -404,90 +404,69 @@ const [
 // CARREGAR DADOS DO SUPABASE
 // ======================================
 
+const CACHE_FRONTEND = "sistema_logistico_cache_v1";
+
+function aplicarDadosLocais(base: any) {
+  setUsuarios(base.usuarios ?? []);
+  setOperadores(base.operadores ?? []);
+  setAtividades(base.atividades ?? []);
+  setTransportadoras(base.transportadoras ?? []);
+  setMarketplaces(base.marketplaces ?? []);
+  setMotivos(base.motivos ?? []);
+  setProdutos(base.produtos ?? []);
+  setTrocas(base.trocas ?? []);
+  setDevolucoesLogistica(base.devolucoes ?? []);
+  setDevolucaoMarketplace(base.devolucaoMarketplace ?? []);
+  setFalhas(base.falhas ?? []);
+  setPrioridades(base.prioridades ?? []);
+  setProdutividade(base.produtividade ?? []);
+  setSlas(base.slas ?? []);
+}
+
 async function carregarDados() {
-
   try {
-    const base = await api.carregarBaseCompletaPlanilhas();
+    const armazenado = localStorage.getItem(CACHE_FRONTEND);
+    if (armazenado) {
+      aplicarDadosLocais(JSON.parse(armazenado));
+    }
 
+    const [
+      usuarios, operadores, atividades, transportadoras,
+      marketplaces, motivos, produtos, trocas, devolucoes,
+      devolucaoMarketplace, falhas, prioridades, produtividade, slas
+    ] = await Promise.all([
+      api.listarUsuarios(),
+      api.listarOperadores(),
+      api.listarAtividades(),
+      api.listarTransportadoras(),
+      api.listarMarketplaces(),
+      api.listarMotivos(),
+      api.listarProdutos(),
+      api.listarTrocas(),
+      api.listarDevolucoesLogistica(),
+      api.listarDevolucaoMarketplace(),
+      api.listarFalhas(),
+      api.listarPrioridades(),
+      api.listarProdutividade(),
+      api.listarSLAs()
+    ]);
 
+    const baseAtualizada = {
+      usuarios, operadores, atividades, transportadoras,
+      marketplaces, motivos, produtos, trocas, devolucoes,
+      devolucaoMarketplace, falhas, prioridades, produtividade, slas
+    };
 
-    // ==========================
-    // CONFIGURAÇÕES
-    // ==========================
+    aplicarDadosLocais(baseAtualizada);
 
-    setUsuarios(
-      base.usuarios ?? []
-    );
-
-    setOperadores(
-      base.operadores ?? []
-    );
-
-    setAtividades(
-      base.atividades ?? []
-    );
-
-    setTransportadoras(
-      base.transportadoras ?? []
-    );
-
-    setMarketplaces(
-      base.marketplaces ?? []
-    );
-
-    setMotivos(
-      base.motivos ?? []
-    );
-
-    setProdutos(
-      base.produtos ?? []
-    );
-
-
-
-    // ==========================
-    // PROCESSOS
-    // ==========================
-
-    setTrocas(
-      base.trocas ?? []
-    );
-
-    setDevolucoesLogistica(
-      base.devolucoes ?? []
-    );
-
-    setDevolucaoMarketplace(
-      base.devolucaoMarketplace ?? []
-    );
-
-    setFalhas(
-      base.falhas ?? []
-    );
-
-    setPrioridades(
-      base.prioridades ?? []
-    );
-
-    setProdutividade(
-      base.produtividade ?? []
-    );
-
-    setSlas(
-      base.slas ?? []
-    );
-
+    try {
+      localStorage.setItem(CACHE_FRONTEND, JSON.stringify(baseAtualizada));
+    } catch (erroCache) {
+      console.log("Não foi possível atualizar o cache local.", erroCache);
+    }
+  } catch (error) {
+    console.error("Erro ao carregar dados do sistema:", error);
   }
-
-  catch (error) {
-
-    console.error(
-      "Erro ao carregar dados do sistema:",
-      error
-    );
-
-  }
-
 }
 
 
