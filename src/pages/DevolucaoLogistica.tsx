@@ -108,6 +108,18 @@ function formatarMoeda(valor: number): string {
   });
 }
 
+function converterValorMonetario(valor: string): number {
+  const texto = valor.trim();
+  if (!texto) return 0;
+
+  const normalizado = texto.includes(",")
+    ? texto.replace(/\./g, "").replace(",", ".")
+    : texto;
+  const numero = Number(normalizado);
+
+  return Number.isFinite(numero) && numero >= 0 ? numero : 0;
+}
+
 function decisaoPorStatus(status: string): string {
   const decisoes: Record<string, string> = {
     Recebido: "Em andamento",
@@ -353,7 +365,7 @@ export default function DevolucaoLogistica() {
   }
 
   async function salvarEdicao() {
-    if (!registroSelecionado || somenteLeitura) return;
+    if (!registroSelecionado) return;
 
     if (editStatus === "Não entregue" && (!editCodigoRastreio.trim() || !editDataInformadaEntrega)) {
       window.alert("Informe o código de rastreio e a data informada como entregue.");
@@ -366,8 +378,8 @@ export default function DevolucaoLogistica() {
       String(registroSelecionado.decisao_final ?? "") !== editDecisaoFinal ||
       String(registroSelecionado.codigo_rastreio ?? "") !== editCodigoRastreio.trim() ||
       String(registroSelecionado.data_informada_entrega ?? "") !== editDataInformadaEntrega ||
-      Number(registroSelecionado.valor_frete ?? 0) !== (Number(editValorFrete.replace(",", ".")) || 0) ||
-      Number(registroSelecionado.valor_estorno ?? 0) !== (Number(editValorEstorno.replace(",", ".")) || 0);
+      Number(registroSelecionado.valor_frete ?? 0) !== converterValorMonetario(editValorFrete) ||
+      Number(registroSelecionado.valor_estorno ?? 0) !== converterValorMonetario(editValorEstorno);
 
     if (houveAlteracao && !editOperadorEtapa.trim()) {
       window.alert("Selecione quem realizou esta etapa.");
@@ -387,8 +399,8 @@ export default function DevolucaoLogistica() {
       const dataInformadaAnterior = String(registroSelecionado.data_informada_entrega ?? "");
       const freteAnterior = Number(registroSelecionado.valor_frete ?? 0);
       const estornoAnterior = Number(registroSelecionado.valor_estorno ?? 0);
-      const valorFrete = Number(editValorFrete.replace(",", ".")) || 0;
-      const valorEstorno = Number(editValorEstorno.replace(",", ".")) || 0;
+      const valorFrete = converterValorMonetario(editValorFrete);
+      const valorEstorno = converterValorMonetario(editValorEstorno);
 
       const statusFoiAlterado = statusAnterior !== editStatus;
       let registroAtualizado: RegistroDevolucao = registroSelecionado;

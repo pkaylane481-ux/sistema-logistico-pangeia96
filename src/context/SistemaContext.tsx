@@ -407,56 +407,7 @@ const [
 async function carregarDados() {
 
   try {
-
-    const [
-
-      usuariosData,
-      operadoresData,
-      atividadesData,
-      transportadorasData,
-      marketplacesData,
-      motivosData,
-      produtosData,
-
-      trocasData,
-      devolucoesData,
-      devolucaoMarketplaceData,
-      falhasData,
-      prioridadesData,
-      produtividadeData,
-      slasData
-
-    ] = await Promise.all([
-      
-
-    
-
-
-      // ==========================
-      // CONFIGURAÇÕES
-      // ==========================
-
-      api.listarUsuarios(),
-      api.listarOperadores(),
-      api.listarAtividades(),
-      api.listarTransportadoras(),
-      api.listarMarketplaces(),
-      api.listarMotivos(),
-      api.listarProdutos(),
-
-      // ==========================
-      // PROCESSOS
-      // ==========================
-
-      api.listarTrocas(),
-      api.listarDevolucoesLogistica(),
-      api.listarDevolucaoMarketplace(),
-      api.listarFalhas(),
-      api.listarPrioridades(),
-      api.listarProdutividade(),
-      api.listarSLAs()
-
-    ]);
+    const base = await api.carregarBaseCompletaPlanilhas();
 
 
 
@@ -465,31 +416,31 @@ async function carregarDados() {
     // ==========================
 
     setUsuarios(
-      usuariosData ?? []
+      base.usuarios ?? []
     );
 
     setOperadores(
-      operadoresData ?? []
+      base.operadores ?? []
     );
 
     setAtividades(
-      atividadesData ?? []
+      base.atividades ?? []
     );
 
     setTransportadoras(
-      transportadorasData ?? []
+      base.transportadoras ?? []
     );
 
     setMarketplaces(
-      marketplacesData ?? []
+      base.marketplaces ?? []
     );
 
     setMotivos(
-      motivosData ?? []
+      base.motivos ?? []
     );
 
     setProdutos(
-      produtosData ?? []
+      base.produtos ?? []
     );
 
 
@@ -499,31 +450,31 @@ async function carregarDados() {
     // ==========================
 
     setTrocas(
-      trocasData ?? []
+      base.trocas ?? []
     );
 
     setDevolucoesLogistica(
-      devolucoesData ?? []
+      base.devolucoes ?? []
     );
 
     setDevolucaoMarketplace(
-      devolucaoMarketplaceData ?? []
+      base.devolucaoMarketplace ?? []
     );
 
     setFalhas(
-      falhasData ?? []
+      base.falhas ?? []
     );
 
     setPrioridades(
-      prioridadesData ?? []
+      base.prioridades ?? []
     );
 
     setProdutividade(
-      produtividadeData ?? []
+      base.produtividade ?? []
     );
 
     setSlas(
-      slasData ?? []
+      base.slas ?? []
     );
 
   }
